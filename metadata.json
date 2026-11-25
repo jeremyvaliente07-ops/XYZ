@@ -1,0 +1,6 @@
+{
+  "name": "XYZ Studio — Dessin Technique & Modélisation 3D",
+  "description": "Application web professionnelle de dessin technique 2D multi-plans (X, Y, Z) et de modélisation géométrique 3D en temps réel avec export JPG, PNG, PDF et OBJ.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
