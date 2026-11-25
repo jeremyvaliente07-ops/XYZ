@@ -45,6 +45,58 @@ interface HistorySnapshot {
   surfaces: CADSurface3D[];
 }
 
+const LINE_COLORS = ['#0f172a', '#dc2626', '#2563eb', '#16a34a', '#ea580c', '#7c3aed'];
+const SURFACE_COLORS = ['#dbeafe', '#fecaca', '#bbf7d0', '#fde68a', '#ddd6fe', '#cbd5e1'];
+
+interface ColorSwatchesProps {
+  value: string;
+  palette: string[];
+  onChange: (color: string) => void;
+}
+
+const ColorSwatches: React.FC<ColorSwatchesProps> = ({ value, palette, onChange }) => (
+  <div className="flex items-center gap-1.5">
+    <span className="text-slate-600 font-medium">Couleur :</span>
+    <div className="flex items-center gap-1">
+      {palette.map((c) => {
+        const active = value.toLowerCase() === c.toLowerCase();
+        return (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(c)}
+            style={{ backgroundColor: c }}
+            title={c}
+            className={`w-5 h-5 rounded-md border transition-transform ${
+              active
+                ? 'border-slate-900 ring-2 ring-slate-900/25 scale-110'
+                : 'border-slate-300 hover:scale-105'
+            }`}
+          />
+        );
+      })}
+      <label
+        title="Choisir une autre couleur"
+        className="w-5 h-5 rounded-md border border-slate-300 overflow-hidden cursor-pointer relative flex items-center justify-center bg-white hover:border-slate-500"
+      >
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 w-8 h-8 -top-1 -left-1 cursor-pointer opacity-0"
+        />
+        <span
+          className="w-3.5 h-3.5 rounded-xs border border-slate-200"
+          style={{
+            background:
+              'conic-gradient(from 0deg, #ef4444, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444)',
+          }}
+        />
+      </label>
+    </div>
+  </div>
+);
+
 export default function App() {
   const [project, setProject] = useState<CADProject>(() => {
     try {
@@ -88,6 +140,8 @@ export default function App() {
 
   const [customAngleDeg, setCustomAngleDeg] = useState<number>(45);
   const [surfaceFillMode, setSurfaceFillMode] = useState<boolean>(true);
+  const [activeLineColor, setActiveLineColor] = useState<string>('#0f172a');
+  const [activeSurfaceColor, setActiveSurfaceColor] = useState<string>('#dbeafe');
   const [polygonDraft, setPolygonDraft] = useState<Point3D[]>([]);
 
   const [past, setPast] = useState<HistorySnapshot[]>([]);
@@ -206,6 +260,7 @@ export default function App() {
         id: `line_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         start,
         end,
+        color: activeLineColor,
         createdAt: Date.now(),
       };
       commitGeometryChange((prev) => ({
@@ -214,6 +269,17 @@ export default function App() {
       }));
       setSelectedLineIds([newLine.id]);
       setSelectedSurfaceId(null);
+    },
+    [commitGeometryChange, activeLineColor]
+  );
+
+  const handleUpdateLinesColor = useCallback(
+    (lineIds: string[], color: string) => {
+      setActiveLineColor(color);
+      commitGeometryChange((prev) => ({
+        lines: prev.lines.map((l) => (lineIds.includes(l.id) ? { ...l, color } : l)),
+        surfaces: prev.surfaces,
+      }));
     },
     [commitGeometryChange]
   );
@@ -279,6 +345,7 @@ export default function App() {
         vertices,
         filled,
         extrudeHeight: 0,
+        color: activeSurfaceColor,
         createdAt: Date.now(),
       };
       commitGeometryChange((prev) => ({
@@ -289,7 +356,7 @@ export default function App() {
       setSelectedLineIds([]);
       notify('Surface 3D créée.', 'success');
     },
-    [commitGeometryChange, notify]
+    [commitGeometryChange, notify, activeSurfaceColor]
   );
 
   const handleCreateSurfaceFromSelectedLines = useCallback(() => {
@@ -304,6 +371,7 @@ export default function App() {
       vertices: loopRes.vertices,
       filled: surfaceFillMode,
       extrudeHeight: 0,
+      color: activeSurfaceColor,
       createdAt: Date.now(),
     };
     commitGeometryChange((prev) => ({
@@ -313,7 +381,7 @@ export default function App() {
     setSelectedSurfaceId(newSurf.id);
     setSelectedLineIds([]);
     notify('Surface 3D créée depuis les lignes.', 'success');
-  }, [project.lines, selectedLineIds, surfaceFillMode, commitGeometryChange, notify]);
+  }, [project.lines, selectedLineIds, surfaceFillMode, activeSurfaceColor, commitGeometryChange, notify]);
 
   const handleUpdateSurface = useCallback(
     (surfaceId: string, patch: Partial<CADSurface3D>, skipHistory = false) => {
@@ -394,6 +462,7 @@ export default function App() {
     Boolean(singleSelectedLine) ||
     selectedLines.length > 1 ||
     Boolean(selectedSurface) ||
+    activeTool === 'line' ||
     activeTool === 'angled_line' ||
     activeTool === 'surface';
 
@@ -587,17 +656,25 @@ export default function App() {
 
       {/* Contextual Strip (only appears when needed) */}
       {hasContextualBar && (
-        <div className="flex items-center justify-center gap-4 px-4 py-1.5 bg-slate-100 border-b border-slate-200 text-xs shrink-0">
+        <div className="flex flex-wrap items-center justify-center gap-4 px-4 py-1.5 bg-slate-100 border-b border-slate-200 text-xs shrink-0">
           {singleSelectedLine && (
-            <div className="flex items-center gap-3">
-              <Ruler className="w-3.5 h-3.5 text-slate-600" />
-              <span>
-                Longueur :{' '}
-                <strong className="font-mono">
-                  {getLineRealLength3D(singleSelectedLine, project.grid.cellSize).toFixed(1)}{' '}
-                  {project.grid.unit}
-                </strong>
-              </span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Ruler className="w-3.5 h-3.5 text-slate-600" />
+                <span>
+                  Longueur :{' '}
+                  <strong className="font-mono">
+                    {getLineRealLength3D(singleSelectedLine, project.grid.cellSize).toFixed(1)}{' '}
+                    {project.grid.unit}
+                  </strong>
+                </span>
+              </div>
+              <span className="text-slate-300">|</span>
+              <ColorSwatches
+                value={singleSelectedLine.color || '#0f172a'}
+                palette={LINE_COLORS}
+                onChange={(c) => handleUpdateLinesColor([singleSelectedLine.id], c)}
+              />
               <button
                 type="button"
                 onClick={handleDeleteSelected}
@@ -612,6 +689,11 @@ export default function App() {
           {selectedLines.length > 1 && (
             <div className="flex items-center gap-3">
               <span className="font-medium">{selectedLines.length} lignes sélectionnées</span>
+              <ColorSwatches
+                value={selectedLines[0]?.color || activeLineColor}
+                palette={LINE_COLORS}
+                onChange={(c) => handleUpdateLinesColor(selectedLineIds, c)}
+              />
               <button
                 type="button"
                 onClick={handleCreateSurfaceFromSelectedLines}
@@ -631,12 +713,20 @@ export default function App() {
           )}
 
           {selectedSurface && (
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <span className="font-medium">
                 Surface :{' '}
                 {getPolygonRealArea3D(selectedSurface.vertices, project.grid.cellSize).toFixed(1)}{' '}
                 {project.grid.unit}²
               </span>
+              <ColorSwatches
+                value={selectedSurface.color || '#dbeafe'}
+                palette={SURFACE_COLORS}
+                onChange={(c) => {
+                  setActiveSurfaceColor(c);
+                  handleUpdateSurface(selectedSurface.id, { color: c });
+                }}
+              />
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -676,34 +766,53 @@ export default function App() {
             </div>
           )}
 
+          {activeTool === 'line' &&
+            !singleSelectedLine &&
+            selectedLines.length === 0 &&
+            !selectedSurface && (
+              <ColorSwatches
+                value={activeLineColor}
+                palette={LINE_COLORS}
+                onChange={setActiveLineColor}
+              />
+            )}
+
           {activeTool === 'angled_line' &&
             !singleSelectedLine &&
             selectedLines.length === 0 &&
             !selectedSurface && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-slate-700">Angle :</span>
-                <input
-                  type="number"
-                  step="5"
-                  value={customAngleDeg}
-                  onChange={(e) => setCustomAngleDeg(Number(e.target.value))}
-                  className="w-16 px-2 py-0.5 text-xs font-mono bg-white border border-slate-300 rounded"
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-700">Angle :</span>
+                  <input
+                    type="number"
+                    step="5"
+                    value={customAngleDeg}
+                    onChange={(e) => setCustomAngleDeg(Number(e.target.value))}
+                    className="w-16 px-2 py-0.5 text-xs font-mono bg-white border border-slate-300 rounded"
+                  />
+                  <span className="text-slate-500">°</span>
+                  {[30, 45, 60, 90].map((deg) => (
+                    <button
+                      key={deg}
+                      type="button"
+                      onClick={() => setCustomAngleDeg(deg)}
+                      className={`px-2 py-0.5 text-[11px] font-mono rounded ${
+                        customAngleDeg === deg
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {deg}°
+                    </button>
+                  ))}
+                </div>
+                <span className="text-slate-300">|</span>
+                <ColorSwatches
+                  value={activeLineColor}
+                  palette={LINE_COLORS}
+                  onChange={setActiveLineColor}
                 />
-                <span className="text-slate-500">°</span>
-                {[30, 45, 60, 90].map((deg) => (
-                  <button
-                    key={deg}
-                    type="button"
-                    onClick={() => setCustomAngleDeg(deg)}
-                    className={`px-2 py-0.5 text-[11px] font-mono rounded ${
-                      customAngleDeg === deg
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {deg}°
-                  </button>
-                ))}
               </div>
             )}
 
@@ -711,7 +820,13 @@ export default function App() {
             !singleSelectedLine &&
             selectedLines.length === 0 &&
             !selectedSurface && (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <ColorSwatches
+                  value={activeSurfaceColor}
+                  palette={SURFACE_COLORS}
+                  onChange={setActiveSurfaceColor}
+                />
+                <span className="text-slate-300">|</span>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -774,6 +889,8 @@ export default function App() {
           onPushHistory={pushHistorySnapshot}
           customAngleDeg={customAngleDeg}
           surfaceFillMode={surfaceFillMode}
+          activeLineColor={activeLineColor}
+          activeSurfaceColor={activeSurfaceColor}
           polygonDraft={polygonDraft}
           setPolygonDraft={setPolygonDraft}
           onRegisterSnapshotGetter={handleRegisterSnapshotGetter}

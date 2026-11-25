@@ -23,6 +23,7 @@ export interface CADLine3D {
   id: string;
   start: Point3D;
   end: Point3D;
+  color?: string;
   createdAt: number;
 }
 
@@ -31,6 +32,7 @@ export interface CADSurface3D {
   vertices: Point3D[];
   filled: boolean;
   extrudeHeight: number; // 0 = flat face, >0 or <0 = extruded 3D solid along normal
+  color?: string;
   name?: string;
   createdAt: number;
 }

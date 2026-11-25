@@ -45,6 +45,8 @@ interface Canvas3DProps {
   onPushHistory: () => void;
   customAngleDeg: number;
   surfaceFillMode: boolean;
+  activeLineColor: string;
+  activeSurfaceColor: string;
   polygonDraft: Point3D[];
   setPolygonDraft: React.Dispatch<React.SetStateAction<Point3D[]>>;
   onRegisterSnapshotGetter: (getter: () => HTMLCanvasElement | string | null) => void;
@@ -139,6 +141,8 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
   onPushHistory,
   customAngleDeg,
   surfaceFillMode,
+  activeLineColor,
+  activeSurfaceColor,
   polygonDraft,
   setPolygonDraft,
   onRegisterSnapshotGetter,
@@ -668,12 +672,13 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
       const isSelected = selectedLineIds.includes(line.id);
       const isHovered = line.id === hoveredLineId;
 
-      const color = isSelected ? 0x2563eb : isHovered ? 0xf59e0b : 0x0f172a;
+      const baseHex = line.color ? new THREE.Color(line.color).getHex() : 0x0f172a;
+      const color = isHovered ? 0xf59e0b : baseHex;
       const lineObj = makeFatLine(
         line.start,
         line.end,
         color,
-        isSelected ? 3.5 : isHovered ? 3.2 : 2.6,
+        isSelected ? 4.2 : isHovered ? 3.4 : 2.8,
         !isSelected && !isHovered && displayMode === 'solid',
         1,
         isSelected ? 40 : isHovered ? 35 : 18
@@ -704,8 +709,9 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
       const surfGeo = buildSurfaceGeometry3D(surf);
       if (surfGeo) {
         if (displayMode === 'solid' && surf.filled) {
+          const surfHex = surf.color ? new THREE.Color(surf.color).getHex() : 0xdbeafe;
           const mat = new THREE.MeshPhysicalMaterial({
-            color: isSelected ? 0x93c5fd : isHovered ? 0xfde68a : 0xdbeafe,
+            color: isHovered ? 0xfde68a : surfHex,
             roughness: 0.35,
             metalness: 0.08,
             transparent: Math.abs(surf.extrudeHeight || 0) < 0.01,
@@ -728,8 +734,9 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
         } else {
           // Wireframe / Unfilled outline
           const edgesGeo = new THREE.EdgesGeometry(surfGeo, 15);
+          const outlineHex = surf.color ? new THREE.Color(surf.color).getHex() : 0x334155;
           const edgesMat = new THREE.LineBasicMaterial({
-            color: isSelected ? 0x2563eb : isHovered ? 0xf59e0b : 0x334155,
+            color: isSelected ? 0x2563eb : isHovered ? 0xf59e0b : outlineHex,
           });
           cadGroup.add(new THREE.LineSegments(edgesGeo, edgesMat));
 
@@ -805,6 +812,9 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
       return lineObj;
     };
 
+    const customLineHex = new THREE.Color(activeLineColor || '#0f172a').getHex();
+    const customSurfaceHex = new THREE.Color(activeSurfaceColor || '#2563eb').getHex();
+
     if (activeTool !== 'orbit' && activeTool !== 'eraser' && activeTool !== 'extrude') {
       const dotColor = snappedVertex
         ? 0x16a34a
@@ -814,7 +824,9 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
         ? 0x2563eb
         : activeAxis === 'Z'
         ? 0x16a34a
-        : 0x0f172a;
+        : activeTool === 'surface'
+        ? customSurfaceHex
+        : customLineHex;
 
       const dot = new THREE.Mesh(
         new THREE.SphereGeometry(snappedVertex ? 0.15 : 0.11, 14, 14),
@@ -833,7 +845,7 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
           ? 0x2563eb
           : activeAxis === 'Z'
           ? 0x16a34a
-          : 0x0f172a;
+          : customLineHex;
 
       // Always draw continuous line all the way to the cursor (from pixel 1, never hidden behind faces)
       if (!pointsEqual3D(lineDraftStart, hoveredRawPt, 0.005)) {
@@ -865,14 +877,14 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
 
     if (activeTool === 'surface' && polygonDraft.length > 0) {
       const pts = [...polygonDraft, hoveredRawPt];
-      const polyLine = makePreviewLine(pts, 0x2563eb, 3.2, 0.95, 100);
+      const polyLine = makePreviewLine(pts, customSurfaceHex, 3.2, 0.95, 100);
       if (polyLine) previewGroup.add(polyLine);
 
       polygonDraft.forEach((p, idx) => {
         const sphere = new THREE.Mesh(
           new THREE.SphereGeometry(idx === 0 ? 0.15 : 0.1, 12, 12),
           new THREE.MeshBasicMaterial({
-            color: idx === 0 ? 0x0f172a : 0x2563eb,
+            color: idx === 0 ? 0x0f172a : customSurfaceHex,
             depthTest: false,
           })
         );
@@ -891,6 +903,8 @@ export const Canvas3D: React.FC<Canvas3DProps> = ({
     lineDraftStart,
     polygonDraft,
     activeTool,
+    activeLineColor,
+    activeSurfaceColor,
   ]);
 
   const projectWorldToScreen = useCallback((pt: Point3D): { x: number; y: number } | null => {

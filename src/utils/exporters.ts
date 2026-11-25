@@ -130,6 +130,7 @@ export function renderOrthoProjectionCanvas(
 
   project.surfaces.forEach((surf) => {
     if (surf.vertices.length < 3) return;
+    const surfStroke = surf.color || meta.color;
     const drawPoly = (verts: Point3D[]) => {
       ctx.beginPath();
       const p0 = projectTo2D(verts[0], view);
@@ -140,10 +141,10 @@ export function renderOrthoProjectionCanvas(
       }
       ctx.closePath();
       if (surf.filled) {
-        ctx.fillStyle = `${meta.color}22`;
+        ctx.fillStyle = surf.color ? `${surf.color}66` : `${meta.color}22`;
         ctx.fill();
       }
-      ctx.strokeStyle = meta.color;
+      ctx.strokeStyle = surf.color ? '#334155' : surfStroke;
       ctx.lineWidth = 2;
       ctx.stroke();
     };
@@ -165,10 +166,10 @@ export function renderOrthoProjectionCanvas(
         ctx.lineTo(toX(t1.u), toY(t1.v));
         ctx.closePath();
         if (surf.filled) {
-          ctx.fillStyle = `${meta.color}16`;
+          ctx.fillStyle = surf.color ? `${surf.color}44` : `${meta.color}16`;
           ctx.fill();
         }
-        ctx.strokeStyle = meta.color;
+        ctx.strokeStyle = surf.color ? '#475569' : surfStroke;
         ctx.lineWidth = 1.6;
         ctx.stroke();
       }
@@ -179,7 +180,7 @@ export function renderOrthoProjectionCanvas(
   project.lines.forEach((line) => {
     const a = projectTo2D(line.start, view);
     const b = projectTo2D(line.end, view);
-    ctx.strokeStyle = '#0F172A';
+    ctx.strokeStyle = line.color || '#0F172A';
     ctx.lineWidth = 2.6;
     ctx.lineCap = 'round';
     ctx.beginPath();
